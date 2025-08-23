@@ -18,7 +18,6 @@ person2 = Person("Reshma", 25)
 person2.greet()
 p3 = Person("Anu", 28)
 p3.greet()
-'''print("welcome Reshma")'''
 person1.myfun() 
 p3.myfun()
 
