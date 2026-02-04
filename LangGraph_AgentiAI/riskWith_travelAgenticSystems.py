@@ -1,19 +1,28 @@
 import os
 from openai import OpenAI
+""" Risks:
+• 	If API keys are mishandled (e.g., hardcoded), they can leak.
+• 	Dependency on external API → risk of downtime or rate limits. """
 
 # Initialize OpenAI client (set your API key in environment variable)
 from dotenv import load_dotenv
 load_dotenv()
-
+""" Risks:
+• 	Privilege compromise: If the agent inherits a powerful API key, it could be tricked into using it for unintended tasks.
+• 	Data leakage: If logs print the API key, attackers could steal it. """
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
 
 # === Base Agent Class ===
 class Agent:
     def __init__(self, name: str):
         self.name = name
 
+    """- What it does: Sends a prompt to the LLM and returns the response.
+    - Risks:
+    - Hallucination: LLM may fabricate flight/hotel info.
+    - Prompt injection: Malicious user input could override system instructions.
+    - Data exfiltration: If sensitive context is passed, LLM could leak it.
+    - Resource overload: Excessive calls could trigger DoS or high costs. """
     def query_llm(self, prompt: str) -> str:
         """Helper to call LLM with a prompt."""
         response = client.chat.completions.create(
@@ -29,6 +38,10 @@ class Agent:
 
 
 # === Specialized Agents ===
+""" - Risks:
+- Hallucination: Fake hotel ratings.
+- Bias: May promote certain hotels unfairly.
+- Conflict: Hotel dates may not match flight dates """
 class FlightAgent(Agent):
     def act(self, task: str, context: dict) -> dict:
         destination = context.get("destination", "Unknown")
@@ -36,7 +49,11 @@ class FlightAgent(Agent):
         flights = self.query_llm(prompt)
         return {"flights": flights, "agent": self.name}
 
-
+""" - What it does: Queries LLM for flight options.
+- Risks:
+- Hallucination: Fake flight prices.
+- Conflicting outputs: Dates may not align with hotels.
+- Bias: LLM may favor certain airlines. """
 class HotelAgent(Agent):
     def act(self, task: str, context: dict) -> dict:
         destination = context.get("destination", "Unknown")
@@ -44,7 +61,10 @@ class HotelAgent(Agent):
         hotels = self.query_llm(prompt)
         return {"hotels": hotels, "agent": self.name}
 
-
+""" - Risks:
+- Bias: May suggest stereotypical activities.
+- Hallucination: Invents attractions that don’t exist.
+- Security: Could be tricked into suggesting unsafe activities. """
 class RecommendationAgent(Agent):
     def act(self, task: str, context: dict) -> dict:
         destination = context.get("destination", "Unknown")
@@ -53,6 +73,11 @@ class RecommendationAgent(Agent):
         return {"activities": activities, "agent": self.name}
 
 
+""" - What it does: Analyzes plan for risks.
+- Risks:
+- Hallucination: May invent risks that don’t exist.
+- False negatives: May miss real conflicts.
+- Over‑trust: Users may rely too heavily on its analysis. """
 class RiskMonitorAgent(Agent):
     def act(self, task: str, context: dict) -> dict:
         prompt = f"""Analyze the following trip plan for risks:
@@ -65,12 +90,20 @@ class RiskMonitorAgent(Agent):
 
 
 # === Planner Agent ===
+""" - What it does: Coordinates sub‑agents and risk monitor.
+- Risks:
+- Coordination overhead: Sequential calls → latency.
+- Single point of failure: If planner fails, whole system fails. """
 class PlannerAgent(Agent):
     def __init__(self, name: str, sub_agents: dict, risk_agent: Agent):
         super().__init__(name)
         self.sub_agents = sub_agents
         self.risk_agent = risk_agent
 
+    """Risks:
+    - Conflicting outputs: No synchronization between agents.
+    - Data leakage: Aggregated plan may expose sensitive info.
+    - Trust issues: Risk monitor may give false confidence"""
     def act(self, task: str, context: dict) -> dict:
         print(f"[{self.name}] Coordinating trip planning for {context['destination']}...")
 
@@ -95,6 +128,11 @@ class PlannerAgent(Agent):
 
 
 # === Run System ===
+""" - What it does: Instantiates agents, runs planner, prints final plan.
+- Risks:
+- Prompt injection: If user_context includes malicious text, it could hijack agents.
+- Transparency risk: Printed plan may expose sensitive info.
+- Over‑reliance: Users may trust the plan without verifying. """
 if __name__ == "__main__":
     flight_agent = FlightAgent("FlightAgent")
     hotel_agent = HotelAgent("HotelAgent")
